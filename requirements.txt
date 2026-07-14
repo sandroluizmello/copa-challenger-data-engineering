@@ -1,0 +1,17 @@
+# Manipulação e Banco de Dados
+pandas
+numpy
+mysql-connector-python
+sqlalchemy
+
+# Visualização e Dashboard
+plotly
+streamlit
+
+# Machine Learning e IA
+scikit-learn
+torch
+openai
+
+# Qualidade de Código (Opcional)
+ipykernel
