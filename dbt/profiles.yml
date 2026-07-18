@@ -1,0 +1,10 @@
+copa_challenger:
+  outputs:
+    dev:
+      type: mysql
+      server: "{{ env_var('DB_HOST') }}"
+      port: {{ env_var('DB_PORT') | int }}
+      schema: marts  # Schema padrão exigido pelo dbt para metadados
+      username: "{{ env_var('DB_USER') }}"
+      password: "{{ env_var('DB_PASSWORD') }}"
+  target: dev

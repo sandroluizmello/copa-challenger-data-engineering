@@ -1,0 +1,10 @@
+# Ignorar dados e ambientes locais no build do Docker
+venv/
+.venv/
+__pycache__/
+data/
+database/mysql_data/
+.git/
+.vscode/
+README.md
+ESTRUTURA_PASTAS.md

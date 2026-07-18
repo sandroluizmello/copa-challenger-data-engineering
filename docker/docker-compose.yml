@@ -1,0 +1,56 @@
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: copa_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_123
+      MYSQL_DATABASE: copa_challenger
+      MYSQL_USER: dbt_user
+      MYSQL_PASSWORD: dbt_password_123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # init-scripts fica em database/, na raiz do repo (um nível acima deste arquivo)
+      - ../database/init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - copa_network
+
+  # dbt Container
+  dbt:
+    build:
+      # contexto = raiz do repositório (um nível acima deste arquivo)
+      # necessário para o Dockerfile conseguir copiar o requirements.txt
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: copa_dbt
+    working_dir: /workspace
+    volumes:
+      # monta só a pasta dbt/ como workspace do container
+      - ../dbt:/workspace
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=copa_challenger
+      - DB_USER=dbt_user
+      - DB_PASSWORD=dbt_password_123
+      - DBT_PROFILES_DIR=/workspace
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - copa_network
+    command: /bin/bash
+    tty: true
+
+volumes:
+  mysql_data:
+
+networks:
+  copa_network:
+    driver: bridge

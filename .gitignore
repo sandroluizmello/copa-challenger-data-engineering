@@ -1,0 +1,23 @@
+# Ambientes Virtuais Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Arquivos de Configuração Local e Credenciais
+.env
+docker/.env
+
+# Dados Brutos e Temporários
+data/raw/*
+!data/raw/.gitkeep
+
+# Artefatos Gerados automaticamente pelo dbt
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+
+# IDEs
+.vscode/
+.idea/
