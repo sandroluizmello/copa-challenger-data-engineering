@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Tabelas com dados brutos extraídos diretamente dos CSVs do Kaggle."
+    database: copa_challenger   # Nome do banco definido no docker-compose
+    schema: raw                 # Schema onde o script inseriu os dados
+    tables:
+      - name: world_cup
+        description: "Dados consolidados por edição da Copa do Mundo."
+      - name: fifa_ranking
+        description: "Instante do ranking de pontos da FIFA de Outubro de 2022."
+      - name: matches
+        description: "Histórico completo de partidas com dados de eventos e estatísticas."
