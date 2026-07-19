@@ -1,0 +1,27 @@
+name: 'copa_challenger'
+version: '1.0.0'
+config-version: 2
+
+# Aponta para o perfil que configuramos no profiles.yml
+profile: 'copa_challenger'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Configuração de como os modelos serão gerados no banco
+models:
+  copa_challenger:
+    staging:
+      +materialized: view  # Camada staging sempre como View por boa prática
+      +schema: staging     # Força o dbt a criar essas views no schema 'staging' do MySQL
+    marts:
+      +materialized: table # Camada final (marts) como Tabela para performance
+      +schema: marts       # Garante que a camada final vá para o schema 'marts'

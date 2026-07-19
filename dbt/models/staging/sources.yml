@@ -3,7 +3,6 @@ version: 2
 sources:
   - name: raw
     description: "Tabelas com dados brutos extraídos diretamente dos CSVs do Kaggle."
-    database: copa_challenger   # Nome do banco definido no docker-compose
     schema: raw                 # Schema onde o script inseriu os dados
     tables:
       - name: world_cup
