@@ -1,0 +1,635 @@
+version: 2
+
+# ============================================================
+# DIMENSÕES - Tabelas de Referência
+# ============================================================
+
+models:
+
+  # DIM_TEAMS
+  - name: dim_teams
+    description: "Dimensão de seleções internacionais de futebol. Cada linha é um time único com metadados (código FIFA, confederação)."
+    
+    columns:
+      - name: team_id
+        description: "Primary Key — Hash MD5 do nome da seleção (normalizado)"
+        tests:
+          - not_null
+          - unique
+      
+      - name: team_name
+        description: "Nome oficial da seleção"
+        tests:
+          - not_null
+      
+      - name: team_code
+        description: "Código FIFA de 3 caracteres (ex: BRA, GER, ARG)"
+        tests:
+          - not_null
+      
+      - name: continental_federation
+        description: "Confederação (UEFA, CONMEBOL, CONCACAF, AFC, CAF, OFC)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['UEFA', 'CONMEBOL', 'CONCACAF', 'AFC', 'CAF', 'OFC', 'Unknown']
+
+  # DIM_STADIUMS
+  - name: dim_stadiums
+    description: "Dimensão de estádios. Cada linha é um estádio único onde foram disputadas partidas."
+    
+    columns:
+      - name: stadium_id
+        description: "Primary Key — Hash MD5 do nome do estádio"
+        tests:
+          - not_null
+          - unique
+      
+      - name: stadium_name
+        description: "Nome do estádio"
+        tests:
+          - not_null
+      
+      - name: city_name
+        description: "Cidade onde fica o estádio"
+        tests:
+          - not_null
+      
+      - name: country_name
+        description: "País do estádio"
+        tests:
+          - not_null
+
+  # DIM_WORLD_CUPS
+  - name: dim_world_cups
+    description: "Dimensão de Copas do Mundo. Cada linha é uma edição (1930, 1934, ..., 2022)."
+    
+    columns:
+      - name: world_cup_id
+        description: "Primary Key — Ano da Copa (ex: 2022, 2018, 2014)"
+        tests:
+          - not_null
+          - unique
+      
+      - name: host_country
+        description: "País que sediou a Copa"
+        tests:
+          - not_null
+      
+      - name: champion_country
+        description: "Seleção campeã"
+        tests:
+          - not_null
+      
+      - name: runner_up_country
+        description: "Seleção vice-campeã (2º lugar)"
+        tests:
+          - not_null
+      
+      - name: total_teams_qualified
+        description: "Quantidade de seleções que participaram"
+        tests:
+          - not_null
+      
+      - name: total_matches_played
+        description: "Total de partidas disputadas"
+        tests:
+          - not_null
+      
+      - name: total_attendance
+        description: "Público total da edição"
+        tests:
+          - not_null
+
+# ============================================================
+# FATOS - Tabelas de Eventos
+# ============================================================
+
+  # FCT_MATCHES
+  - name: fct_matches
+    description: "Tabela de fatos central. Cada linha é uma partida das Copas do Mundo."
+    
+    columns:
+      - name: match_id
+        description: "Primary Key — Identificador único da partida"
+        tests:
+          - not_null
+          - unique
+      
+      - name: world_cup_id
+        description: "Foreign Key — Ano da Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: home_team_id
+        description: "Foreign Key — Seleção que jogou em casa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: away_team_id
+        description: "Foreign Key — Seleção que jogou fora"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: stadium_id
+        description: "Foreign Key — Estádio onde foi disputada"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_stadiums')
+              field: stadium_id
+      
+      - name: home_team_score
+        description: "Gols marcados pelo time mandante"
+        tests:
+          - not_null
+      
+      - name: away_team_score
+        description: "Gols marcados pelo time visitante"
+        tests:
+          - not_null
+      
+      - name: match_attendance
+        description: "Público da partida"
+        tests:
+          - not_null
+
+  # FCT_MATCH_GOALS
+  - name: fct_match_goals
+    description: "Tabela de fatos de gols. Cada linha é um gol marcado em uma partida."
+    
+    columns:
+      - name: goal_id
+        description: "Primary Key — Identificador único do gol"
+        tests:
+          - not_null
+          - unique
+      
+      - name: match_id
+        description: "Foreign Key — Partida em que foi marcado"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_matches')
+              field: match_id
+      
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: team_id
+        description: "Foreign Key — Seleção que marcou"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: goal_type
+        description: "Tipo de gol (GOL_NORMAL, PENALTI, GOL_CONTRA)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GOL_NORMAL', 'PENALTI', 'GOL_CONTRA']
+      
+      - name: minute_numeric
+        description: "Minuto em que foi marcado (0-120+)"
+        tests:
+          - not_null
+
+  # FCT_MATCH_CARDS
+  - name: fct_match_cards
+    description: "Tabela de fatos de cartões. Cada linha é um cartão (amarelo, vermelho)."
+    
+    columns:
+      - name: card_id
+        description: "Primary Key — Identificador único do cartão"
+        tests:
+          - not_null
+          - unique
+      
+      - name: match_id
+        description: "Foreign Key — Partida"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_matches')
+              field: match_id
+      
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: team_id
+        description: "Foreign Key — Seleção que recebeu o cartão"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: card_type
+        description: "Tipo de cartão (AMARELO, VERMELHO, SEGUNDO_AMARELO)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['AMARELO', 'VERMELHO', 'SEGUNDO_AMARELO']
+
+  # FCT_MATCH_PENALTY_SHOOTOUTS
+  - name: fct_match_penalty_shootouts
+    description: "Tabela de fatos de penalidades em disputas de pênaltis."
+    
+    columns:
+      - name: shootout_id
+        description: "Primary Key — Identificador único"
+        tests:
+          - not_null
+          - unique
+      
+      - name: match_id
+        description: "Foreign Key — Partida"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_matches')
+              field: match_id
+      
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: team_id
+        description: "Foreign Key — Seleção"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: is_goal
+        description: "Se o pênalti foi convertido (true/false)"
+        tests:
+          - not_null
+
+  # FCT_MATCH_SUBSTITUTIONS
+  - name: fct_match_substitutions
+    description: "Tabela de fatos de substituições."
+    
+    columns:
+      - name: substitution_id
+        description: "Primary Key — Identificador único"
+        tests:
+          - not_null
+          - unique
+      
+      - name: match_id
+        description: "Foreign Key — Partida"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_matches')
+              field: match_id
+      
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: team_id
+        description: "Foreign Key — Seleção"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+
+# ============================================================
+# ANALYTICS VIEWS - Agregações para Dashboard
+# ============================================================
+
+  # ANALYTICS_TEAM_OVERALL_PERFORMANCE
+  - name: analytics_team_overall_performance
+    description: "Estatísticas agregadas de cada seleção (todas as Copas)."
+    
+    columns:
+      - name: team_id
+        description: "Foreign Key — Seleção"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: team_name
+        description: "Nome da seleção"
+        tests:
+          - not_null
+      
+      - name: total_matches
+        description: "Total de partidas disputadas"
+        tests:
+          - not_null
+      
+      - name: total_wins
+        description: "Total de vitórias (incluindo pênaltis)"
+        tests:
+          - not_null
+      
+      - name: total_draws
+        description: "Total de empates"
+        tests:
+          - not_null
+      
+      - name: total_losses
+        description: "Total de derrotas (incluindo pênaltis perdidos)"
+        tests:
+          - not_null
+      
+      - name: total_goals_for
+        description: "Total de gols marcados"
+        tests:
+          - not_null
+      
+      - name: total_goals_against
+        description: "Total de gols sofridos"
+        tests:
+          - not_null
+      
+      - name: goal_difference
+        description: "Saldo de gols (gols_for - gols_against)"
+        tests:
+          - not_null
+      
+      - name: win_rate_pct
+        description: "Taxa de vitória em percentual (0-100)"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+
+  # ANALYTICS_TEAM_BY_WORLD_CUP
+  - name: analytics_team_by_world_cup
+    description: "Performance de cada seleção POR COPA."
+    
+    columns:
+      - name: team_id
+        description: "Foreign Key — Seleção"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: total_matches
+        tests:
+          - not_null
+      
+      - name: wins
+        tests:
+          - not_null
+      
+      - name: draws
+        tests:
+          - not_null
+      
+      - name: losses
+        tests:
+          - not_null
+      
+      - name: win_rate_pct
+        description: "Taxa de vitória (0-100)"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+
+  # ANALYTICS_TOP_SCORERS
+  - name: analytics_top_scorers
+    description: "Ranking de artilheiros históricos."
+    
+    columns:
+      - name: scorer_name
+        description: "Nome do jogador"
+        tests:
+          - not_null
+      
+      - name: total_goals
+        description: "Total de gols marcados"
+        tests:
+          - not_null
+
+  # ANALYTICS_TEAM_DISCIPLINE
+  - name: analytics_team_discipline
+    description: "Estatísticas de cartões por seleção."
+    
+    columns:
+      - name: team_id
+        description: "Foreign Key — Seleção"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: yellow_cards
+        description: "Total de cartões amarelos"
+        tests:
+          - not_null
+      
+      - name: red_cards_direct
+        description: "Total de cartões vermelhos diretos"
+        tests:
+          - not_null
+      
+      - name: avg_cards_per_match
+        description: "Média de cartões por partida (0-)"
+        tests:
+          - not_null
+
+  # ANALYTICS_WORLD_CUP_SUMMARY
+  - name: analytics_world_cup_summary
+    description: "Resumo de cada edição da Copa."
+    
+    columns:
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: total_matches
+        tests:
+          - not_null
+      
+      - name: total_goals
+        tests:
+          - not_null
+      
+      - name: avg_goals_per_match
+        description: "Média de gols (0-)"
+        tests:
+          - not_null
+      
+      - name: total_attendance
+        tests:
+          - not_null
+
+  # ANALYTICS_DASHBOARD_MAIN_KPIS
+  - name: analytics_dashboard_main_kpis
+    description: "KPIs consolidados para o dashboard principal."
+    
+    columns:
+      - name: total_world_cups
+        description: "Total de Copas registradas"
+        tests:
+          - not_null
+      
+      - name: total_matches
+        description: "Total de partidas"
+        tests:
+          - not_null
+      
+      - name: total_goals
+        description: "Total de gols"
+        tests:
+          - not_null
+      
+      - name: avg_goals_per_match
+        description: "Média de gols por partida"
+        tests:
+          - not_null
+      
+      - name: total_teams
+        description: "Total de seleções diferentes"
+        tests:
+          - not_null
+
+  # ANALYTICS_WORLD_CUP_CHAMPIONS_HISTORY
+  - name: analytics_world_cup_champions_history
+    description: "Histórico de campeões e vices."
+    
+    columns:
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: champion_country
+        tests:
+          - not_null
+      
+      - name: runner_up_country
+        tests:
+          - not_null
+
+  # ANALYTICS_TEAM_EVOLUTION_OVER_TIME
+  - name: analytics_team_evolution_over_time
+    description: "Evolução de performance entre Copas consecutivas."
+    
+    columns:
+      - name: team_id
+        description: "Foreign Key — Seleção"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_teams')
+              field: team_id
+      
+      - name: world_cup_id
+        description: "Foreign Key — Copa"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_world_cups')
+              field: world_cup_id
+      
+      - name: wins
+        tests:
+          - not_null
+      
+      - name: win_rate_pct
+        description: "Taxa de vitória (0-100)"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+
+  # ANALYTICS_BIGGEST_VICTORIES
+  - name: analytics_biggest_victories
+    description: "Maiores goleadas da história."
+    
+    columns:
+      - name: match_id
+        description: "Foreign Key — Partida"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fct_matches')
+              field: match_id
+      
+      - name: winning_team
+        tests:
+          - not_null
+      
+      - name: losing_team
+        tests:
+          - not_null
+      
+      - name: goal_difference
+        description: "Diferença de gols (> 0)"
+        tests:
+          - not_null
+
+  # ANALYTICS_MOST_CARDED_PLAYERS
+  - name: analytics_most_carded_players
+    description: "Ranking de jogadores com mais cartões."
+    
+    columns:
+      - name: player_name
+        description: "Nome do jogador"
+        tests:
+          - not_null
+      
+      - name: total_cards
+        description: "Total de cartões"
+        tests:
+          - not_null
