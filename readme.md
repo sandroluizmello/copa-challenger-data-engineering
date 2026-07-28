@@ -49,7 +49,7 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
                   │
                   ▼
  ┌─────────────────────────────────────────────────────────┐
- │  GOLD (Schema: marts) - STAR SCHEMA                     │
+ │  GOLD (Schema: marts) - STAR SCHEMA + ANALYTICS         │
  │                                                         │
  │  Dimensões:                                             │
  │  • dim_teams        - Informações dos times             │
@@ -60,10 +60,20 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
  │  • fct_matches      - Tabela central (chave integrada)  │
  │                                                         │
  │  Fatos Especializados:                                  │
- │  • fct_match_cards       - Cartões (amarelo/vermelho)   │
- │  • fct_match_goals       - Gols marcados                │
- │  • fct_match_shoot_out_penalties - Penalidades          │
- │  • fct_match_substitutions      - Substituições         │
+ │  • fct_match_cards               - Cartões              │
+ │  • fct_match_goals               - Gols marcados        │
+ │  • fct_match_penalty_shootouts   - Penalidades          │
+ │  • fct_match_substitutions       - Substituições        │
+ │                                                         │
+ │  Views de Análise (Fase 1 - 8 views):                   │
+ │  • analytics_dashboard_main_kpis - KPIs consolidados    │
+ │  • analytics_team_overall_performance - Performance     │
+ │  • analytics_team_by_world_cup - Performance/Copa       │
+ │  • analytics_world_cup_summary - Resumo das copas       │
+ │  • analytics_world_cup_champions_history - Campeões     │
+ │  • analytics_top_scorers - Artilheiros históricos       │
+ │  • analytics_team_discipline - Cartões por time         │
+ │  • analytics_team_evolution_over_time - Trends          │
  │                                                         │
  └─────────────────────────────────────────────────────────┘
 ```
@@ -88,8 +98,8 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
         ┌───────────────┬───────┴───────┬──────────────────┐
         ▼               ▼               ▼                  ▼
 ┌───────────────┐┌───────────────┐┌────────────────────┐┌───────────────────┐
-│fct_match_cards││fct_match_goals││fct_match_shoot_out_││fct_match_         │
-│               ││               ││penalties           ││substitutions      │
+│fct_match_cards││fct_match_goals││fct_match_penalty_  ││fct_match_         │
+│               ││               ││shootouts           ││substitutions      │
 └───────────────┘└───────────────┘└────────────────────┘└───────────────────┘
 ```
 
@@ -111,27 +121,40 @@ copa-challenger-data-engineering/
 ├── 📂 dbt/                              # Transformações de dados
 │   ├── dbt_project.yml                  # Config do projeto
 │   ├── profiles.yml                     # Credenciais (env vars)
-│   ├── schema.yml                       # Documentação de tabelas/testes
+│   ├── schema.yml                       # Documentação de tabelas + testes genéricos
 │   ├── models/
 │   │   ├── staging/                     # Limpeza e validação
 │   │   │   ├── stg_world_cups.sql
 │   │   │   ├── stg_matches.sql
 │   │   │   ├── stg_stadiums.sql
 │   │   │   └── stg_teams.sql
-│   │   └── marts/
-│   │       ├── core/                    # Fatos e dimensões
-│   │       │   ├── dim_teams.sql
-│   │       │   ├── dim_world_cups.sql
-│   │       │   ├── dim_stadiums.sql
-│   │       │   ├── fct_matches.sql
-│   │       │   ├── fct_match_cards.sql
-│   │       │   ├── fct_match_goals.sql
-│   │       │   ├── fct_match_shoot_out_penalties.sql
-│   │       │   └── fct_match_substitutions.sql
-│   │       └── analytics/               # Views de análise (próximo)
-│   ├── tests/                           # Testes de qualidade (próximo)
-│   ├── macros/                          # Funções SQL reutilizáveis (próximo)
-│   └── seeds/                           # CSVs de referência (próximo)
+│   │   ├── marts/
+│   │   │   ├── core/                    # Fatos e dimensões (Star Schema)
+│   │   │   │   ├── dim_teams.sql
+│   │   │   │   ├── dim_world_cups.sql
+│   │   │   │   ├── dim_stadiums.sql
+│   │   │   │   ├── fct_matches.sql
+│   │   │   │   ├── fct_match_cards.sql
+│   │   │   │   ├── fct_match_goals.sql
+│   │   │   │   ├── fct_match_penalty_shootouts.sql
+│   │   │   │   └── fct_match_substitutions.sql
+│   │   │   └── analytics/               # Views de análise (Fase 1 ✅)
+│   │   │       ├── analytics_dashboard_main_kpis.sql
+│   │   │       ├── analytics_team_overall_performance.sql
+│   │   │       ├── analytics_team_by_world_cup.sql
+│   │   │       ├── analytics_world_cup_summary.sql
+│   │   │       ├── analytics_world_cup_champions_history.sql
+│   │   │       ├── analytics_top_scorers.sql
+│   │   │       ├── analytics_team_discipline.sql
+│   │   │       └── analytics_team_evolution_over_time.sql
+│   ├── tests/
+│   │   ├── generic/                    # Testes genéricos (via schema.yml)
+│   │   └── singular/                   # Testes singulares personalizados ✅
+│   │       ├── test_team_record_consistency.sql
+│   │       ├── test_no_negative_goals.sql
+│   │       └── test_percentage_between_0_100.sql
+│   ├── macros/                          # Funções SQL reutilizáveis
+│   └── seeds/                           # CSVs de referência
 │
 ├── 📂 data/                             # Datasets
 │   └── raw/                             # CSVs do Kaggle (não versionado)
@@ -140,7 +163,7 @@ copa-challenger-data-engineering/
 │       └── matches_1930_2022.csv
 │
 ├── 📂 scripts/                          # Scripts utilitários
-│   └── ingest_raw.py                    # Ingestão de CSVs → MySQL
+│   └── ingest_raw.py                    # Ingestão de CSVs → MySQL (com logging)
 │
 ├── requirements.txt                     # Dependências Python (versões fixadas)
 ├── requirements_curado.txt              # Dependências sem transitivas
@@ -258,7 +281,7 @@ Connected to: mysql://dbt_user@mysql:3307/copa_challenger
 docker-compose -f docker/docker-compose.yml exec dbt bash
 
 # Dentro do container, rode:
-cd /workspace/..  # Sai da pasta dbt
+cd /workspace/..
 python ingest_raw.py
 ```
 
@@ -280,10 +303,10 @@ python ingest_raw.py
 # Listar os modelos
 dbt list
 
-# Executar as transformações (staging + marts)
+# Executar as transformações (staging + marts + analytics)
 dbt run
 
-# Rodar testes de qualidade (quando implementados)
+# Rodar testes de qualidade
 dbt test
 
 # Gerar documentação
@@ -323,6 +346,11 @@ SELECT * FROM dim_stadiums;
 SELECT * FROM fct_matches LIMIT 10;
 SELECT COUNT(*) FROM fct_match_goals;
 SELECT COUNT(*) FROM fct_match_cards;
+
+# Ver analytics:
+SELECT * FROM analytics_dashboard_main_kpis;
+SELECT * FROM analytics_team_overall_performance;
+SELECT * FROM analytics_top_scorers;
 ```
 
 ### Via Client Gráfico (DBeaver, MySQL Workbench, etc.)
@@ -348,18 +376,20 @@ dbt debug
 # Listar modelos
 dbt list                          # Todos
 dbt list -s models/staging        # Apenas staging
+dbt list -s models/analytics      # Apenas analytics
 dbt list -s tag:daily             # Apenas modelos com tag 'daily'
 
 # Executar transformações
 dbt run                           # Todos os modelos
 dbt run -s models/staging         # Apenas staging
-dbt run -s models/marts           # Apenas marts
+dbt run -s models/analytics       # Apenas analytics
 dbt run -s +my_model              # Dependências à frente de my_model
 dbt run -s my_model+              # Dependências atrás de my_model
 
 # Testes
-dbt test                          # Todos os testes
-dbt test -s models/staging        # Testes apenas de staging
+dbt test                          # Todos os testes (genéricos + singulares)
+dbt test -s models/analytics      # Apenas testes de analytics
+dbt test --select test_type:singular  # Apenas testes singulares
 
 # Documentação
 dbt docs generate                 # Gera docs em target/manifest.json
@@ -378,21 +408,68 @@ dbt compile                       # Compila SQL sem executar
 
 ### 📌 Dimensões
 
-| Tabela | Descrição | Campos Principais |
-|--------|-----------|------------------|
-| `dim_teams` | Informações dos times | team_id, team_name, country, confederation |
-| `dim_world_cups` | Histórico das copas | world_cup_id, year, host_country, winner |
-| `dim_stadiums` | Dados dos estádios | stadium_id, stadium_name, city, capacity |
+| Tabela | Descrição | Tipo |
+|--------|-----------|------|
+| `dim_teams` | Informações dos times | Slowly Changing Dimension (SCD 1) |
+| `dim_world_cups` | Histórico das copas | Estática |
+| `dim_stadiums` | Dados dos estádios | Estática |
 
 ### 📊 Tabelas de Fatos
 
-| Tabela | Descrição | Função |
-|--------|-----------|--------|
-| `fct_matches` | Tabela central de partidas | Conecta todas as dimensões |
-| `fct_match_cards` | Registros de cartões | Análise de disciplina (amarelo/vermelho) |
-| `fct_match_goals` | Registros de gols | Análise de desempenho ofensivo |
-| `fct_match_shoot_out_penalties` | Penalidades | Análise de decisões por pênaltis |
-| `fct_match_substitutions` | Substituições | Análise de estratégia tática |
+| Tabela | Descrição | Granularidade |
+|--------|-----------|---------------|
+| `fct_matches` | Tabela central de partidas | Uma linha por partida |
+| `fct_match_cards` | Registros de cartões | Uma linha por cartão |
+| `fct_match_goals` | Registros de gols | Uma linha por gol |
+| `fct_match_penalty_shootouts` | Penalidades em disputas | Uma linha por cobrança |
+| `fct_match_substitutions` | Substituições | Uma linha por substituição |
+
+---
+
+## 📊 Analytics Views - Fase 1 ✅
+
+**8 views de análise implementadas** cobrindo os principais casos de uso:
+
+### 🎯 Dashboard & KPIs
+- **analytics_dashboard_main_kpis** — KPIs consolidados para homepage (total copas, partidas, gols, artilheiro histórico)
+
+### 🏆 Performance de Times
+- **analytics_team_overall_performance** — Estatísticas gerais de cada seleção (vitórias, derrotas, gols)
+- **analytics_team_by_world_cup** — Performance por seleção E por edição da Copa
+- **analytics_team_evolution_over_time** — Evolução entre Copas consecutivas (trends)
+
+### 🌍 Histórico de Copas
+- **analytics_world_cup_summary** — Resumo de cada edição (campeão, vice, gols, público)
+- **analytics_world_cup_champions_history** — Histórico de campeões/vices com extras (time mais indisciplinado, melhor em pênaltis)
+
+### ⚽ Análise Ofensiva
+- **analytics_top_scorers** — Ranking de artilheiros históricos (gols por tipo)
+
+### 🔴 Análise Defensiva
+- **analytics_team_discipline** — Estatísticas de cartões por seleção (amarelos, vermelhos, expulsões)
+
+**Todas reutilizam o Star Schema** e seguem boas práticas de dbt (comments, prefix padrão, views em marts schema).
+
+---
+
+## 🧪 Testes Automatizados ✅
+
+**Cobertura completa com genéricos + singulares:**
+
+### ✅ Genéricos (via schema.yml)
+- **52 testes automatizados** cobrindo:
+  - `not_null`: campos críticos não vazios
+  - `unique`: chaves primárias verdadeiramente únicas
+  - `relationships`: integridade referencial (FKs válidas)
+  - `accepted_values`: enums validados (ex: card_type ∈ {AMARELO, VERMELHO, SEGUNDO_AMARELO})
+  - `dbt_expectations.*_between`: percentuais entre 0-100%
+
+### ✅ Singulares (SQL customizado)
+- **test_team_record_consistency** — Valida: `wins + draws + losses = total_matches`
+- **test_no_negative_goals** — Nenhum gol negativo em nenhuma tabela
+- **test_percentage_between_0_100** — Percentuais válidos em todas as views
+
+**Status:** Todos os testes passam ✅ (PASS=52 WARN=0 ERROR=0)
 
 ---
 
@@ -403,17 +480,27 @@ dbt compile                       # Compila SQL sem executar
 - [x] Script de ingestão de dados (com logging e validações)
 - [x] Projeto dbt estruturado
 - [x] Modelos de staging (limpeza e validação)
-- [x] **Modelos de marts - Star Schema completo** ⭐ NOVO
+- [x] Modelos de marts - Star Schema completo ⭐
   - [x] dim_teams
   - [x] dim_world_cups
   - [x] dim_stadiums
   - [x] fct_matches
   - [x] fct_match_cards
   - [x] fct_match_goals
-  - [x] fct_match_shoot_out_penalties
+  - [x] fct_match_penalty_shootouts
   - [x] fct_match_substitutions
-- [ ] Views de análise (analytics)
-- [ ] Testes automatizados (generic + singular)
+- [x] **Views de análise - Fase 1** ⭐ NOVO
+  - [x] analytics_dashboard_main_kpis
+  - [x] analytics_team_overall_performance
+  - [x] analytics_team_by_world_cup
+  - [x] analytics_world_cup_summary
+  - [x] analytics_world_cup_champions_history
+  - [x] analytics_top_scorers
+  - [x] analytics_team_discipline
+  - [x] analytics_team_evolution_over_time
+- [x] **Testes automatizados** ⭐ NOVO
+  - [x] Genéricos (52 testes via schema.yml)
+  - [x] Singulares (3 testes customizados)
 - [ ] CI/CD (GitHub Actions)
 - [ ] Dashboard (Streamlit)
 - [ ] Modelo preditivo (Machine Learning)
@@ -435,12 +522,10 @@ dbt compile                       # Compila SQL sem executar
 
 ## 📝 Próximos Passos
 
-1. **Views de análise** - Criar modelos no schema `analytics` para consultas comuns
-2. **Testes automatizados** - Implementar testes genéricos e singulares no dbt
-3. **Dashboard com Streamlit** - Visualizações dos dados de matches
-4. **Modelo preditivo** - Prever resultado de partidas com sklearn
-5. **CI/CD** - GitHub Actions para validar transformações
-6. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
+1. **CI/CD** - GitHub Actions para validar transformações automaticamente
+2. **Dashboard com Streamlit** - Visualizações interativas dos dados de matches
+3. **Modelo preditivo** - Prever resultado de partidas com sklearn
+4. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
 
 ---
 
@@ -481,6 +566,19 @@ docker-compose -f docker/docker-compose.yml down
 #   - "3308:3306"   # Usar 3308 em vez de 3307
 ```
 
+### ❌ Erro: "dbt_expectations not found"
+
+```bash
+# Se tiver problemas com dbt_expectations, instale via packages.yml
+# Adicione ao dbt/packages.yml:
+# packages:
+#   - package: calogica/dbt_expectations
+#     version: 0.8.0
+
+dbt deps
+dbt test
+```
+
 ### ❌ Erro: "permission denied" ao executar scripts
 
 ```bash
@@ -502,6 +600,20 @@ docker-compose -f docker/docker-compose.yml exec dbt pwd
 # Se não estiver, ajustar volumes no docker-compose.yml
 ```
 
+### ❌ Testes falhando
+
+```bash
+# Rodar testes com verbosidade
+dbt test --debug
+
+# Rodar teste específico
+dbt test -s test_team_record_consistency
+
+# Ver qual dado está causando falha
+dbt test --store-failures
+# Depois conferir: dbt_tests.test_failures (tabela criada)
+```
+
 ---
 
 ## 🤝 Como Contribuir
@@ -521,6 +633,7 @@ docker-compose -f docker/docker-compose.yml exec dbt pwd
 - [SQLAlchemy](https://docs.sqlalchemy.org/)
 - [Docker Compose](https://docs.docker.com/compose/)
 - [Dataset no Kaggle](https://www.kaggle.com/datasets/piterfm/fifa-football-world-cup)
+- [dbt Expectations Package](https://github.com/calogica/dbt-expectations)
 
 ---
 
@@ -539,4 +652,4 @@ Data Engineer | Estudante de Pós-Graduação em Engenharia de Dados (PUC Minas)
 
 ---
 
-**Última atualização:** Julho 2026 - Star Schema implementado
+**Última atualização:** Janeiro 2025 - Fase 1 Analytics Views + Testes Automatizados Completos ✅
