@@ -53,7 +53,7 @@ jobs:
   # os modelos dbt e roda a suíte de testes (genéricos + singulares).
   #
   # Requer o secret do repositório:
-  #   - KAGGLE_API_TOKEN
+  #   - KAGGLE_API_TOKEN (novo método de API Token do Kaggle, não o legado username+key)
   # (Settings > Secrets and variables > Actions > New repository secret)
   # ============================================================
   full-test:
