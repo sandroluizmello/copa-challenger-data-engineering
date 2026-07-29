@@ -1,0 +1,133 @@
+name: dbt CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ============================================================
+  # JOB 1: Validação rápida (roda sempre, sem precisar de banco
+  # de dados ou dataset). Pega erros de sintaxe Jinja/SQL,
+  # referências quebradas (ref/source) e ciclos de dependência.
+  # ============================================================
+  validate:
+    name: Validar sintaxe e referências do dbt
+    runs-on: ubuntu-latest
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 3306
+      DB_USER: dbt_user
+      DB_PASSWORD: dbt_password_123
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Instalar dbt
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-core dbt-mysql
+
+      - name: dbt deps (instalar packages, ex. dbt_expectations)
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt parse (valida sintaxe e referências sem tocar no banco)
+        working-directory: dbt
+        run: dbt parse
+
+  # ============================================================
+  # JOB 2: Teste completo de integração. Sobe um MySQL real,
+  # baixa o dataset do Kaggle, roda a ingestão, executa todos
+  # os modelos dbt e roda a suíte de testes (genéricos + singulares).
+  #
+  # Requer os secrets do repositório:
+  #   - KAGGLE_USERNAME
+  #   - KAGGLE_KEY
+  # (Settings > Secrets and variables > Actions > New repository secret)
+  # ============================================================
+  full-test:
+    name: Build completo + testes (com dados reais)
+    runs-on: ubuntu-latest
+    needs: validate
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_ci_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: dbt_user
+      DB_PASSWORD: dbt_password_123
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install dbt-core dbt-mysql kaggle
+
+      - name: Criar schemas (raw, staging, marts) e usuário da aplicação
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot_ci_password < database/init-scripts/01_init.sql
+
+      - name: Configurar credenciais do Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          echo "KAGGLE_API_TOKEN=$KAGGLE_API_TOKEN" >> $GITHUB_ENV
+
+      - name: Baixar dataset do Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: python scripts/download_kaggle.py
+
+      - name: Rodar ingestão (CSV -> schema raw)
+        run: python ingest_raw.py
+
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt debug (testar conexão real)
+        working-directory: dbt
+        run: dbt debug
+
+      - name: dbt run (staging + marts + analytics)
+        working-directory: dbt
+        run: dbt run
+
+      - name: dbt test (genéricos + singulares)
+        working-directory: dbt
+        run: dbt test
