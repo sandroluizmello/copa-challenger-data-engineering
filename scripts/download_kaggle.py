@@ -7,18 +7,8 @@ from dotenv import load_dotenv
 DATASET = "piterfm/fifa-football-world-cup"
 DATA_DIR = Path("data/raw")
 
-# ============================================================
-# PASSO 1: CARREGAR O TOKEN ANTES DE CHAMAR O KAGGLE
-# ============================================================
 def carregar_configuracoes():
-    """Carrega KAGGLE_API_TOKEN do .env (local) ou do ambiente (CI/CD).
-
-    NOTA TÉCNICA: usamos o CLI do kaggle via subprocess (não a lib
-    Python kaggle.api.kaggle_api_extended diretamente), porque o
-    suporte ao novo API Token (KAGGLE_API_TOKEN) é documentado
-    oficialmente para o CLI (>= 1.8.0), e chamar o binário evita
-    inconsistências entre versões da lib Python.
-    """
+    """Garante a leitura do token de API do Kaggle."""
     env_path = Path(".env")
     load_dotenv(dotenv_path=env_path)
 
@@ -26,24 +16,32 @@ def carregar_configuracoes():
     if not token:
         raise EnvironmentError(
             "❌ KAGGLE_API_TOKEN não configurado!\n"
-            "Configure no .env (local) ou como secret do repositório (CI/CD).\n"
-            "Gere em: https://www.kaggle.com/settings > API Tokens > Generate New Token"
+            "Configure no .env (local) ou como secret do repositório (CI/CD)."
         )
     os.environ['KAGGLE_API_TOKEN'] = token
 
+    # Fallback de compatibilidade para a lib 'kaggle' legada
+    kaggle_dir = Path.home() / ".kaggle"
+    kaggle_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Garante a criação do access_token (novo formato)
+    access_token_file = kaggle_dir / "access_token"
+    if not access_token_file.exists():
+        access_token_file.write_text(token)
+        access_token_file.chmod(0o600)
 
 def main():
     """Download e descompactação do dataset Copa do Mundo do Kaggle."""
-
     carregar_configuracoes()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     print(f"📥 Baixando dataset '{DATASET}' do Kaggle...")
 
-    # Usa o binário 'kaggle' instalado no MESMO venv/ambiente do
-    # interpretador Python que está rodando este script (evita depender
-    # do PATH do sistema, que não inclui automaticamente venvs isolados).
     kaggle_bin = Path(sys.executable).parent / "kaggle"
+
+    # Injeta a variável explicitamente na execução do subprocesso
+    env = os.environ.copy()
+    env["KAGGLE_API_TOKEN"] = os.getenv("KAGGLE_API_TOKEN", "")
 
     subprocess.run(
         [
@@ -53,6 +51,7 @@ def main():
             "--unzip",
         ],
         check=True,
+        env=env,
     )
 
     print(f"✅ Download e descompactação concluídos em {DATA_DIR}")
@@ -61,7 +60,6 @@ def main():
     for arquivo in DATA_DIR.glob("*.csv"):
         size_mb = arquivo.stat().st_size / (1024 * 1024)
         print(f"   • {arquivo.name} ({size_mb:.2f} MB)")
-
 
 if __name__ == "__main__":
     main()

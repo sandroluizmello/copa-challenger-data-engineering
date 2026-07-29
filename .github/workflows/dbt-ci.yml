@@ -96,13 +96,13 @@ jobs:
         run: |
           python -m venv .venv-kaggle
           .venv-kaggle/bin/pip install --upgrade pip
-          .venv-kaggle/bin/pip install kaggle python-dotenv
+          .venv-kaggle/bin/pip install --upgrade kaggle python-dotenv
 
       - name: Criar schemas (raw, staging, marts) e usuário da aplicação
         run: |
           mysql -h 127.0.0.1 -P 3306 -uroot -proot_ci_password < database/init-scripts/01_init.sql
 
-      - name: Configurar credenciais do Kaggle
+      - name: Configurar credenciais do Kaggle (novo formato access_token)
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: |
