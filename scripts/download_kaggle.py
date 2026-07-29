@@ -1,4 +1,6 @@
 import os
+import sys
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -6,24 +8,16 @@ DATASET = "piterfm/fifa-football-world-cup"
 DATA_DIR = Path("data/raw")
 
 # ============================================================
-# PASSO 1: CARREGAR O TOKEN ANTES DE IMPORTAR O KAGGLE
+# PASSO 1: CARREGAR O TOKEN ANTES DE CHAMAR O KAGGLE
 # ============================================================
 def carregar_configuracoes():
     """Carrega KAGGLE_API_TOKEN do .env (local) ou do ambiente (CI/CD).
 
-    NOTA TÉCNICA: o pacote `kaggle` se autentica automaticamente no
-    momento do `import kaggle`, usando a variável KAGGLE_API_TOKEN caso
-    ela já esteja no ambiente. Por isso ela precisa estar setada
-    ANTES do import — é o que essa função garante.
-
-    IMPORTANTE: não usamos mais o binário `kaggle` via subprocess.
-    O comando `datasets download` do CLI passa por um client interno
-    (`build_kaggle_client`) que só lê credenciais no formato legado
-    (`username` + `key`) e NÃO reconhece KAGGLE_API_TOKEN — é um bug
-    conhecido do próprio kaggle-cli (o token é consumido no
-    `kaggle/__init__.py`, mas esse client novo nunca olha pra ele).
-    Chamando a lib Python diretamente (`kaggle.api`), usamos a
-    instância que já vem autenticada corretamente pelo token.
+    NOTA TÉCNICA: usamos o CLI do kaggle via subprocess (não a lib
+    Python kaggle.api.kaggle_api_extended diretamente), porque o
+    suporte ao novo API Token (KAGGLE_API_TOKEN) é documentado
+    oficialmente para o CLI (>= 1.8.0), e chamar o binário evita
+    inconsistências entre versões da lib Python.
     """
     env_path = Path(".env")
     load_dotenv(dotenv_path=env_path)
@@ -46,16 +40,19 @@ def main():
 
     print(f"📥 Baixando dataset '{DATASET}' do Kaggle...")
 
-    # O import precisa vir DEPOIS de carregar_configuracoes(), porque
-    # é no momento do import que o pacote lê KAGGLE_API_TOKEN e
-    # autentica `kaggle.api` automaticamente.
-    import kaggle
-    api = kaggle.api
+    # Usa o binário 'kaggle' instalado no MESMO venv/ambiente do
+    # interpretador Python que está rodando este script (evita depender
+    # do PATH do sistema, que não inclui automaticamente venvs isolados).
+    kaggle_bin = Path(sys.executable).parent / "kaggle"
 
-    api.dataset_download_files(
-        DATASET,
-        path=str(DATA_DIR),
-        unzip=True,
+    subprocess.run(
+        [
+            str(kaggle_bin), "datasets", "download",
+            "-d", DATASET,
+            "-p", str(DATA_DIR),
+            "--unzip",
+        ],
+        check=True,
     )
 
     print(f"✅ Download e descompactação concluídos em {DATA_DIR}")
