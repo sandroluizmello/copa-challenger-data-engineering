@@ -51,10 +51,6 @@ jobs:
   # JOB 2: Teste completo de integração. Sobe um MySQL real,
   # baixa o dataset do Kaggle, roda a ingestão, executa todos
   # os modelos dbt e roda a suíte de testes (genéricos + singulares).
-  #
-  # Requer o secret do repositório:
-  #   - KAGGLE_API_TOKEN (novo método de API Token do Kaggle, não o legado username+key)
-  # (Settings > Secrets and variables > Actions > New repository secret)
   # ============================================================
   full-test:
     name: Build completo + testes (com dados reais)
@@ -100,15 +96,22 @@ jobs:
         run: |
           python -m venv .venv-kaggle
           .venv-kaggle/bin/pip install --upgrade pip
-          .venv-kaggle/bin/pip install kaggle
+          .venv-kaggle/bin/pip install kaggle python-dotenv
 
       - name: Criar schemas (raw, staging, marts) e usuário da aplicação
         run: |
           mysql -h 127.0.0.1 -P 3306 -uroot -proot_ci_password < database/init-scripts/01_init.sql
 
-      - name: Baixar dataset do Kaggle (usando venv isolado)
+      - name: Configurar credenciais do Kaggle
         env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          mkdir -p ~/.kaggle
+          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_API_TOKEN\"}" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Baixar dataset do Kaggle (usando venv isolado)
         run: .venv-kaggle/bin/python scripts/download_kaggle.py
 
       - name: Rodar ingestão (CSV -> schema raw)
