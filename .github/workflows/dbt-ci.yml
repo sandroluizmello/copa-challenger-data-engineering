@@ -91,23 +91,31 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: Instalar dependências
+      - name: Instalar dependências de ingestão (pandas, numpy, etc)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install dbt-core dbt-mysql kaggle "protobuf==4.25.3"
+
+      - name: Criar venv isolado para o Kaggle (evita conflito de protobuf com dbt)
+        run: |
+          python -m venv .venv-kaggle
+          .venv-kaggle/bin/pip install --upgrade pip
+          .venv-kaggle/bin/pip install kaggle
 
       - name: Criar schemas (raw, staging, marts) e usuário da aplicação
         run: |
           mysql -h 127.0.0.1 -P 3306 -uroot -proot_ci_password < database/init-scripts/01_init.sql
 
-      - name: Baixar dataset do Kaggle
+      - name: Baixar dataset do Kaggle (usando venv isolado)
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-        run: python scripts/download_kaggle.py
+        run: .venv-kaggle/bin/python scripts/download_kaggle.py
 
       - name: Rodar ingestão (CSV -> schema raw)
         run: python ingest_raw.py
+
+      - name: Instalar dbt
+        run: pip install dbt-core dbt-mysql "protobuf==4.25.3"
 
       - name: dbt deps
         working-directory: dbt
