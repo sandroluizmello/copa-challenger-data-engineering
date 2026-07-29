@@ -100,7 +100,7 @@ jobs:
         run: |
           python -m venv .venv-kaggle
           .venv-kaggle/bin/pip install --upgrade pip
-          .venv-kaggle/bin/pip install kaggle
+          .venv-kaggle/bin/pip install kaggle python-dotenv
 
       - name: Criar schemas (raw, staging, marts) e usuário da aplicação
         run: |
