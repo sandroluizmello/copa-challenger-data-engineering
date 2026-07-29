@@ -19,6 +19,13 @@ CREATE SCHEMA IF NOT EXISTS marts;    -- Modelos finais (fatos e dimensões)
 -- =====================================================
 -- Permissões
 -- =====================================================
+-- Cria o usuário explicitamente (idempotente) para que o script
+-- funcione tanto localmente (onde o container MySQL já pode ter
+-- criado o usuário via MYSQL_USER/MYSQL_PASSWORD) quanto no CI
+-- (onde só MYSQL_ROOT_PASSWORD é definido e o usuário não existe
+-- ainda). Sem isso, o GRANT falha com erro 1410 no MySQL 8.0,
+-- que não permite mais criar usuário implicitamente via GRANT.
+CREATE USER IF NOT EXISTS 'dbt_user'@'%' IDENTIFIED BY 'dbt_password_123';
 GRANT ALL PRIVILEGES ON *.* TO 'dbt_user'@'%';
 FLUSH PRIVILEGES;
 
