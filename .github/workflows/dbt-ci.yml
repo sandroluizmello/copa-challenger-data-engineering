@@ -37,7 +37,7 @@ jobs:
       - name: Instalar dbt
         run: |
           python -m pip install --upgrade pip
-          pip install dbt-core dbt-mysql
+          pip install dbt-core dbt-mysql "protobuf==4.25.3"
 
       - name: dbt deps (instalar packages, ex. dbt_expectations)
         working-directory: dbt
@@ -52,9 +52,8 @@ jobs:
   # baixa o dataset do Kaggle, roda a ingestão, executa todos
   # os modelos dbt e roda a suíte de testes (genéricos + singulares).
   #
-  # Requer os secrets do repositório:
-  #   - KAGGLE_USERNAME
-  #   - KAGGLE_KEY
+  # Requer o secret do repositório:
+  #   - KAGGLE_API_TOKEN
   # (Settings > Secrets and variables > Actions > New repository secret)
   # ============================================================
   full-test:
@@ -96,7 +95,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install dbt-core dbt-mysql kaggle
+          pip install dbt-core dbt-mysql kaggle "protobuf==4.25.3"
 
       - name: Criar schemas (raw, staging, marts) e usuário da aplicação
         run: |
