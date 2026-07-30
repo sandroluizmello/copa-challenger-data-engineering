@@ -287,7 +287,7 @@ docker-compose -f docker/docker-compose.yml exec dbt dbt debug
 ```
 Configuration:
   profiles.yml file: /workspace/profiles.yml
-  dbt version: 1.6.0
+  dbt version: 1.7.9
   adapter plugin: dbt-mysql
 
 Connected to: mysql://dbt_user@mysql:3307/copa_challenger
@@ -301,8 +301,7 @@ Connected to: mysql://dbt_user@mysql:3307/copa_challenger
 docker-compose -f docker/docker-compose.yml exec dbt bash
 
 # Dentro do container, rode:
-cd /workspace/..
-python ingest_raw.py
+python scripts/ingest_raw.py
 ```
 
 **Output esperado:**
@@ -319,6 +318,10 @@ python ingest_raw.py
 
 ```bash
 # Dentro do container dbt (use 'docker-compose exec dbt bash' se não estiver)
+
+# Instalar pacotes dbt (ex. dbt_expectations, usado nos testes) - rodar
+# sempre que packages.yml mudar ou for a primeira vez
+dbt deps
 
 # Listar os modelos
 dbt list
@@ -390,6 +393,9 @@ Database: copa_challenger
 Execute dentro do container dbt (`docker-compose exec dbt bash`):
 
 ```bash
+# Instalar pacotes (ex. dbt_expectations) - rodar sempre que packages.yml mudar
+dbt deps
+
 # Ver status do projeto
 dbt debug
 
@@ -435,7 +441,7 @@ O projeto tem um pipeline automatizado que roda a cada `push` ou Pull Request pr
 - Sobe um MySQL real (GitHub Actions services)
 - Cria os schemas e o usuário da aplicação via `01_init.sql`
 - Baixa o dataset real do Kaggle (`scripts/download_kaggle.py`, em venv isolado — veja nota técnica abaixo)
-- Roda a ingestão (`ingest_raw.py`)
+- Roda a ingestão (`scripts/ingest_raw.py`)
 - Roda `dbt run` (staging + marts + analytics)
 - Roda `dbt test` (52 testes genéricos + 3 singulares)
 
@@ -650,7 +656,7 @@ cat .env | grep KAGGLE
 chmod +x scripts/ingest_raw.py
 
 # Ou executar via Python:
-docker-compose -f docker/docker-compose.yml exec dbt python ingest_raw.py
+docker-compose -f docker/docker-compose.yml exec dbt python scripts/ingest_raw.py
 ```
 
 ### ❌ dbt não encontra arquivos
