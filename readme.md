@@ -174,6 +174,7 @@ copa-challenger-data-engineering/
 │
 ├── requirements.txt                     # Dependências Python
 ├── .env.example                         # Template de variáveis (DB + Kaggle)
+├── SETUP_CICD.md                        # Guia de setup do pipeline CI/CD
 ├── .gitignore                           # Arquivos a ignorar
 ├── .dockerignore                        # Arquivos para ignorar no build
 └── README.md                            # Este arquivo
@@ -433,6 +434,8 @@ dbt compile                       # Compila SQL sem executar
 ## 🔄 CI/CD (GitHub Actions) ✅
 
 O projeto tem um pipeline automatizado que roda a cada `push` ou Pull Request pra `main`/`develop`: [`.github/workflows/dbt-ci.yml`](./.github/workflows/dbt-ci.yml).
+
+> 📄 **Setup detalhado (secrets, troubleshooting):** veja [`SETUP_CICD.md`](./SETUP_CICD.md).
 
 ### Job 1 — `validate` (roda sempre, ~30s)
 - `dbt parse` — valida sintaxe Jinja e referências (`ref`/`source`), sem precisar de banco de dados nem do dataset.
