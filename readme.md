@@ -15,6 +15,7 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
 - ✅ Arquitetura em camadas (Medallion: Raw → Staging → Marts)
 - ✅ Ambiente reproduzível com Docker
 - ✅ Testes automatizados de qualidade de dados
+- ✅ CI/CD com GitHub Actions
 - ✅ Documentação gerada automaticamente
 
 ---
@@ -110,17 +111,22 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
 ```
 copa-challenger-data-engineering/
 │
+├── 📂 .github/
+│   └── workflows/
+│       └── dbt-ci.yml                   # Pipeline de CI/CD (validate + full-test)
+│
 ├── 📂 docker/                           # Orquestração de containers
 │   ├── docker-compose.yml               # Define MySQL + dbt
 │   └── Dockerfile                       # Imagem Python com dbt
 │
 ├── 📂 database/                         # Banco de dados
 │   └── init-scripts/
-│       └── 01_init.sql                  # Cria schemas (raw, staging, marts)
+│       └── 01_init.sql                  # Cria schemas + usuário (raw, staging, marts)
 │
 ├── 📂 dbt/                              # Transformações de dados
 │   ├── dbt_project.yml                  # Config do projeto
 │   ├── profiles.yml                     # Credenciais (env vars)
+│   ├── packages.yml                     # Pacotes dbt (ex. dbt_expectations)
 │   ├── schema.yml                       # Documentação de tabelas + testes genéricos
 │   ├── models/
 │   │   ├── staging/                     # Limpeza e validação
@@ -163,11 +169,11 @@ copa-challenger-data-engineering/
 │       └── matches_1930_2022.csv
 │
 ├── 📂 scripts/                          # Scripts utilitários
-│   └── ingest_raw.py                    # Ingestão de CSVs → MySQL (com logging)
+│   ├── ingest_raw.py                    # Ingestão de CSVs → MySQL (com logging)
+│   └── download_kaggle.py               # Download automatizado do dataset (Kaggle API)
 │
-├── requirements.txt                     # Dependências Python (versões fixadas)
-├── requirements_curado.txt              # Dependências sem transitivas
-├── .env.example                         # Template de variáveis
+├── requirements.txt                     # Dependências Python
+├── .env.example                         # Template de variáveis (DB + Kaggle)
 ├── .gitignore                           # Arquivos a ignorar
 ├── .dockerignore                        # Arquivos para ignorar no build
 └── README.md                            # Este arquivo
@@ -208,12 +214,26 @@ DB_PORT=3307
 DB_USER=dbt_user
 DB_PASSWORD=dbt_password_123
 DB_NAME=copa_challenger
+
+KAGGLE_USERNAME=
+KAGGLE_API_TOKEN=
 ```
 
 > ⚠️ **Aviso:** Credenciais apenas para **desenvolvimento local**. Nunca use em produção!
 
 ### 3️⃣ Baixar o Dataset do Kaggle
 
+**Opção A — Script automatizado (recomendado):**
+```bash
+# 1. Gere seu token em: https://www.kaggle.com/settings > API Tokens > Generate New Token
+# 2. Cole username e token no seu .env (KAGGLE_USERNAME e KAGGLE_API_TOKEN)
+# 3. Instale as dependências e rode:
+
+pip install -r requirements.txt
+python scripts/download_kaggle.py
+```
+
+**Opção B — Manual:**
 ```bash
 # 1. Ir em: https://www.kaggle.com/datasets/piterfm/fifa-football-world-cup
 # 2. Clicar em "Download"
@@ -404,9 +424,39 @@ dbt compile                       # Compila SQL sem executar
 
 ---
 
-## 📊 Star Schema - Fatos e Dimensões Implementados
+## 🔄 CI/CD (GitHub Actions) ✅
 
-### 📌 Dimensões
+O projeto tem um pipeline automatizado que roda a cada `push` ou Pull Request pra `main`/`develop`: [`.github/workflows/dbt-ci.yml`](./.github/workflows/dbt-ci.yml).
+
+### Job 1 — `validate` (roda sempre, ~30s)
+- `dbt parse` — valida sintaxe Jinja e referências (`ref`/`source`), sem precisar de banco de dados nem do dataset.
+
+### Job 2 — `full-test` (build completo de integração, ~3-5 min)
+- Sobe um MySQL real (GitHub Actions services)
+- Cria os schemas e o usuário da aplicação via `01_init.sql`
+- Baixa o dataset real do Kaggle (`scripts/download_kaggle.py`, em venv isolado — veja nota técnica abaixo)
+- Roda a ingestão (`ingest_raw.py`)
+- Roda `dbt run` (staging + marts + analytics)
+- Roda `dbt test` (52 testes genéricos + 3 singulares)
+
+### 🔑 Setup necessário (uma vez só)
+
+Cadastre 2 secrets no repositório (**Settings → Secrets and variables → Actions**):
+
+| Secret | Onde conseguir |
+|--------|----------------|
+| `KAGGLE_USERNAME` | Seu usuário do Kaggle |
+| `KAGGLE_API_TOKEN` | [kaggle.com/settings](https://www.kaggle.com/settings) → aba **API Tokens** → **Generate New Token** |
+
+Sem esses 2 secrets, o Job 1 (`validate`) continua funcionando normalmente — só o Job 2 (`full-test`) depende deles.
+
+### 🧠 Nota técnica: por que o Kaggle roda num venv isolado
+
+O `kaggle` (biblioteca/CLI, versão 2.x com suporte ao novo API Token) depende do `kagglesdk`, que exige `protobuf >= 6`. Já o `dbt-core` está preso na faixa `1.7.x` (dependência do adapter `dbt-mysql`, que não é atualizado há tempos) e precisa de `protobuf < 5` — um bug conhecido do dbt nessa versão quebra com protobuf mais novo. As duas exigências são incompatíveis no mesmo ambiente Python, então o workflow instala o Kaggle num **venv isolado** (`.venv-kaggle`) só pra esse step, evitando o conflito.
+
+---
+
+## 📊 Star Schema - Fatos e Dimensões Implementados
 
 | Tabela | Descrição | Tipo |
 |--------|-----------|------|
@@ -501,7 +551,9 @@ dbt compile                       # Compila SQL sem executar
 - [x] **Testes automatizados** ⭐ NOVO
   - [x] Genéricos (52 testes via schema.yml)
   - [x] Singulares (3 testes customizados)
-- [ ] CI/CD (GitHub Actions)
+- [x] **CI/CD (GitHub Actions)** ⭐ NOVO
+  - [x] Job validate (dbt parse)
+  - [x] Job full-test (build completo + 55 testes com dados reais)
 - [ ] Dashboard (Streamlit)
 - [ ] Modelo preditivo (Machine Learning)
 
@@ -512,20 +564,20 @@ dbt compile                       # Compila SQL sem executar
 | Componente | Tecnologia | Versão |
 |-----------|-----------|--------|
 | **Banco de Dados** | MySQL | 8.0 |
-| **Transformação** | dbt Core | 1.6+ |
+| **Transformação** | dbt Core | 1.7.x (fixado pelo adapter `dbt-mysql`) |
 | **Container** | Docker | 20.10+ |
 | **Python** | Python | 3.10 |
 | **ORM** | SQLAlchemy | 2.0+ |
-| **Dados** | Pandas | 3.0+ |
+| **Dados** | Pandas | 2.2+ |
+| **CI/CD** | GitHub Actions | - |
 
 ---
 
 ## 📝 Próximos Passos
 
-1. **CI/CD** - GitHub Actions para validar transformações automaticamente
-2. **Dashboard com Streamlit** - Visualizações interativas dos dados de matches
-3. **Modelo preditivo** - Prever resultado de partidas com sklearn
-4. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
+1. **Dashboard com Streamlit** - Visualizações interativas dos dados de matches
+2. **Modelo preditivo** - Prever resultado de partidas com sklearn
+3. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
 
 ---
 
@@ -577,6 +629,18 @@ docker-compose -f docker/docker-compose.yml down
 
 dbt deps
 dbt test
+```
+
+### ❌ Erro ao baixar dataset do Kaggle ("Could not find kaggle.json" / "KeyError: 'username'")
+
+```bash
+# Confirme que KAGGLE_USERNAME e KAGGLE_API_TOKEN estão no seu .env (local)
+# ou cadastrados como secrets do repositório (CI/CD)
+
+cat .env | grep KAGGLE
+
+# Gere um novo token em:
+# https://www.kaggle.com/settings > API Tokens > Generate New Token
 ```
 
 ### ❌ Erro: "permission denied" ao executar scripts
@@ -652,4 +716,4 @@ Data Engineer | Estudante de Pós-Graduação em Engenharia de Dados (PUC Minas)
 
 ---
 
-**Última atualização:** Julho 2026 - Fase 1 Analytics Views + Testes Automatizados Completos ✅
+**Última atualização:** Julho 2026 - Fase 1 Analytics Views + Testes Automatizados + CI/CD Completos ✅
