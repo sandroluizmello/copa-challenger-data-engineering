@@ -112,6 +112,10 @@ jobs:
           chmod 600 ~/.kaggle/kaggle.json
 
       - name: Baixar dataset do Kaggle (usando venv isolado)
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: .venv-kaggle/bin/python scripts/download_kaggle.py
 
       - name: Rodar ingestão (CSV -> schema raw)
