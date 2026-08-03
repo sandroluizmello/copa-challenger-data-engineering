@@ -48,6 +48,36 @@ services:
     command: /bin/bash
     tty: true
 
+  # Streamlit Dashboard (reaproveita a mesma imagem do dbt, que já
+  # instala requirements.txt inteiro - streamlit/plotly/pandas incluídos)
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: copa_dashboard
+    working_dir: /workspace
+    volumes:
+      - ../dashboard:/workspace/dashboard
+    environment:
+      # Porta 3306: comunicação interna entre containers usa a porta
+      # real do MySQL dentro da rede Docker. O 3307 é só o mapeamento
+      # externo (host -> container), usado pra evitar conflito com
+      # outro MySQL já rodando na 3306 do seu host - não afeta a
+      # comunicação interna entre containers.
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=copa_challenger
+      - DB_USER=dbt_user
+      - DB_PASSWORD=dbt_password_123
+    ports:
+      - "8501:8501"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - copa_network
+    command: streamlit run dashboard/app.py --server.address=0.0.0.0 --server.port=8501
+
 volumes:
   mysql_data:
 
