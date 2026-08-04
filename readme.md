@@ -16,6 +16,7 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
 - ✅ Ambiente reproduzível com Docker
 - ✅ Testes automatizados de qualidade de dados
 - ✅ CI/CD com GitHub Actions
+- ✅ Dashboard interativo com Streamlit
 - ✅ Documentação gerada automaticamente
 
 ---
@@ -114,6 +115,16 @@ copa-challenger-data-engineering/
 ├── 📂 .github/
 │   └── workflows/
 │       └── dbt-ci.yml                   # Pipeline de CI/CD (validate + full-test)
+│
+├── 📂 dashboard/                        # Dashboard interativo (Streamlit) ⭐ NOVO
+│   ├── app.py                           # Página inicial (KPIs)
+│   ├── db.py                            # Conexão com MySQL + cache
+│   └── pages/
+│       ├── 1_🏆_Desempenho_por_Time.py
+│       ├── 2_🌍_Historico_Copas.py
+│       ├── 3_⚽_Artilheiros.py
+│       ├── 4_🟨_Disciplina.py
+│       └── 5_📈_Evolucao_Times.py
 │
 ├── 📂 docker/                           # Orquestração de containers
 │   ├── docker-compose.yml               # Define MySQL + dbt
@@ -532,7 +543,77 @@ O `kaggle` (biblioteca/CLI, versão 2.x com suporte ao novo API Token) depende d
 
 ---
 
-## 📈 Status do Projeto
+## 📊 Dashboard Streamlit ✅
+
+**App multi-página interativo** consumindo as 8 analytics views para visualização em tempo real.
+
+### 🏠 Páginas Implementadas
+
+1. **Visão Geral (KPIs)** — Página inicial com os principais indicadores
+   - 22 Copas do Mundo
+   - 964 partidas disputadas
+   - 2.720 gols marcados
+   - Público total, artilheiro histórico, seleção com mais títulos
+
+2. **🏆 Desempenho por Time** — Análise comparativa de seleções
+   - Ranking de taxa de vitória
+   - Scatter plot: ataque vs defesa
+   - Filtros por número mínimo de partidas
+   - Tabela completa ordenável
+
+3. **🌍 Histórico das Copas** — Evolução das competições
+   - Linha temporal de média de gols/partida
+   - Ranking de títulos por seleção
+   - Público total por edição
+   - Detalhes de cada Copa
+
+4. **⚽ Artilheiros** — Top scorers da história
+   - Ranking top N artilheiros
+   - Gols por seleção (cor-coded)
+   - Slider ajustável de top N
+   - Caveat: nomes parseados podem ter variações de grafia
+
+5. **🟨 Disciplina** — Análise de cartões
+   - Cartões por tipo (amarelo, vermelho direto, segundo amarelo)
+   - Média de cartões/expulsões por partida
+   - Seleções mais indisciplinadas
+
+6. **📈 Evolução dos Times** — Trends de performance
+   - Selecionáveis (multiselect) para comparação
+   - Taxa de vitória ao longo do tempo
+   - Saldo de gols por Copa
+   - Tendência de melhora/piora em relação à Copa anterior
+
+### 🛠️ Infraestrutura
+
+- **dashboard/app.py** — Página inicial (KPIs)
+- **dashboard/db.py** — Conexão com MySQL + cache de 10 minutos
+- **dashboard/pages/** — 5 páginas sub-rotas (Streamlit reconhece automaticamente)
+- **docker/docker-compose.yml** — Serviço `dashboard` na porta 8501
+- **Reaproveitamento** — Usa o mesmo `docker/Dockerfile` que `dbt` (já instala requirements.txt completo)
+
+### 🚀 Como Rodar
+
+**Local (sem Docker):**
+```bash
+pip install -r requirements.txt
+streamlit run dashboard/app.py
+# Abre em http://localhost:8501
+```
+
+**Via Docker:**
+```bash
+docker-compose -f docker/docker-compose.yml up -d --build dashboard
+# Abre em http://localhost:8501
+```
+
+### 📝 Bug Fix Incluído
+Na criação do dashboard, corrigimos um bug na view `analytics_dashboard_main_kpis.sql`:
+- **Antes:** "Mais participações" contava total de partidas (114 para Brasil)
+- **Agora:** Conta Copas distintas disputadas (22 para Brasil)
+- **Fix:** Adicionado `COUNT(DISTINCT world_cup_id)` em vez de `COUNT(*)`
+
+---
 
 - [x] Setup Docker (MySQL + dbt)
 - [x] Schemas criados (raw, staging, marts)
@@ -563,7 +644,10 @@ O `kaggle` (biblioteca/CLI, versão 2.x com suporte ao novo API Token) depende d
 - [x] **CI/CD (GitHub Actions)** ⭐ NOVO
   - [x] Job validate (dbt parse)
   - [x] Job full-test (build completo + 55 testes com dados reais)
-- [ ] Dashboard (Streamlit)
+- [x] **Dashboard (Streamlit)** ⭐ NOVO
+  - [x] 5 páginas de análise
+  - [x] KPIs consolidados
+  - [x] Integração com analytics views
 - [ ] Modelo preditivo (Machine Learning)
 
 ---
@@ -579,14 +663,16 @@ O `kaggle` (biblioteca/CLI, versão 2.x com suporte ao novo API Token) depende d
 | **ORM** | SQLAlchemy | 2.0+ |
 | **Dados** | Pandas | 2.2+ |
 | **CI/CD** | GitHub Actions | - |
+| **Dashboard** | Streamlit | 1.59+ |
+| **Visualização** | Plotly | 6.9+ |
 
 ---
 
 ## 📝 Próximos Passos
 
-1. **Dashboard com Streamlit** - Visualizações interativas dos dados de matches
-2. **Modelo preditivo** - Prever resultado de partidas com sklearn
-3. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
+1. **Modelo preditivo** - Prever resultado de partidas com sklearn
+2. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
+3. **Alertas & Monitoramento** - Monitorar qualidade dos dados em produção
 
 ---
 
@@ -725,4 +811,4 @@ Data Engineer | Estudante de Pós-Graduação em Engenharia de Dados (PUC Minas)
 
 ---
 
-**Última atualização:** Julho 2026 - Fase 1 Analytics Views + Testes Automatizados + CI/CD Completos ✅
+**Última atualização:** Julho 2026 - Fase 1 Analytics Views + Testes Automatizados + CI/CD + Dashboard Streamlit ✅
