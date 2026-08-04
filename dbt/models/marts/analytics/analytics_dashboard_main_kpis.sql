@@ -17,6 +17,9 @@
 --     GOL_CONTRA. Como esse campo vem de parsing de texto,
 --     grafias diferentes do mesmo jogador podem gerar contagens
 --     separadas — recomenda-se normalizar nomes futuramente.
+--   - "most_appearances" conta COPAS DISTINTAS disputadas
+--     (count distinct world_cup_id), não partidas jogadas.
+--     Ex: Brasil disputou 22 Copas (não ~114 partidas).
 -- ============================================================
 
 with world_cups_stats as (
@@ -45,20 +48,20 @@ teams_stats as (
 
 ),
 
--- Times com mais partidas disputadas (mandante + visitante)
+-- Times com mais COPAS disputadas (distintas), não partidas jogadas
 team_appearances as (
 
     select
         team_id,
         team_name,
-        count(*) as total_matches_played
+        count(distinct world_cup_id) as total_world_cups_played
     from (
-        select home_team_id as team_id, home_team_name as team_name
+        select home_team_id as team_id, home_team_name as team_name, world_cup_id
         from {{ ref('fct_matches') }}
 
         union all
 
-        select away_team_id as team_id, away_team_name as team_name
+        select away_team_id as team_id, away_team_name as team_name, world_cup_id
         from {{ ref('fct_matches') }}
     ) all_matches
     group by team_id, team_name
@@ -69,9 +72,9 @@ most_appearances as (
 
     select
         team_name as team_most_appearances,
-        total_matches_played as most_appearances_count
+        total_world_cups_played as most_appearances_count
     from team_appearances
-    order by total_matches_played desc
+    order by total_world_cups_played desc
     limit 1
 
 ),
