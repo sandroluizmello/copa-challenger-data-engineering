@@ -16,7 +16,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from data_prep import DEFAULT_GOALS_AGAINST, DEFAULT_GOALS_FOR, DEFAULT_WIN_RATE, build_training_dataset
+from data_prep import DEFAULT_GOALS_AGAINST, DEFAULT_GOALS_FOR, DEFAULT_WIN_RATE
+from db import get_engine
 from train_goals_model import expected_goals, scoreline_probability_matrix
 
 MODELS_DIR = "models"
@@ -34,32 +35,52 @@ def _load_artifacts():
 def _latest_team_stats() -> pd.DataFrame:
     """Pega as estatísticas mais recentes conhecidas de cada seleção
     (usadas como 'estado atual' do time para prever confrontos futuros)."""
-    df = build_training_dataset()
-
-    home_cols = {
-        "home_team_id": "team_id", "home_team_name": "team_name",
-        "home_win_rate_before": "win_rate", "home_avg_goals_for_before": "avg_goals_for",
-        "home_avg_goals_against_before": "avg_goals_against",
-        "home_matches_played_before": "matches_played",
-    }
-    away_cols = {
-        "away_team_id": "team_id", "away_team_name": "team_name",
-        "away_win_rate_before": "win_rate", "away_avg_goals_for_before": "avg_goals_for",
-        "away_avg_goals_against_before": "avg_goals_against",
-        "away_matches_played_before": "matches_played",
-    }
-
-    home_view = df[["match_date"] + list(home_cols.keys())].rename(columns=home_cols)
-    away_view = df[["match_date"] + list(away_cols.keys())].rename(columns=away_cols)
-    long_stats = pd.concat([home_view, away_view], ignore_index=True)
-
-    latest = (
-        long_stats.sort_values("match_date")
-        .groupby("team_name")
-        .tail(1)
-        .set_index("team_name")
-    )
-    return latest
+    engine = get_engine()
+    
+    # Query que já calcula as estatísticas por time (similar ao data_prep,
+    # mas agregado direto no banco sem montar o dataset inteiro)
+    query = """
+        with team_stats as (
+            select
+                home_team_name as team_name,
+                sum(case when home_team_score > away_team_score then 1 else 0 end) as wins,
+                sum(case when home_team_score = away_team_score then 1 else 0 end) as draws,
+                count(*) as total_matches,
+                avg(home_team_score) as avg_goals_for,
+                avg(away_team_score) as avg_goals_against
+            from fct_matches
+            where home_team_score is not null and away_team_score is not null
+            group by home_team_name
+            
+            union all
+            
+            select
+                away_team_name as team_name,
+                sum(case when away_team_score > home_team_score then 1 else 0 end) as wins,
+                sum(case when away_team_score = home_team_score then 1 else 0 end) as draws,
+                count(*) as total_matches,
+                avg(away_team_score) as avg_goals_for,
+                avg(home_team_score) as avg_goals_against
+            from fct_matches
+            where home_team_score is not null and away_team_score is not null
+            group by away_team_name
+        )
+        select
+            team_name,
+            sum(wins) as total_wins,
+            sum(draws) as total_draws,
+            sum(total_matches) as total_matches,
+            avg(avg_goals_for) as avg_goals_for,
+            avg(avg_goals_against) as avg_goals_against
+        from team_stats
+        group by team_name
+    """
+    
+    df = pd.read_sql(query, engine)
+    df['win_rate'] = df['total_wins'] / df['total_matches']
+    df['matches_played'] = df['total_matches']
+    
+    return df.set_index('team_name')[['win_rate', 'avg_goals_for', 'avg_goals_against', 'matches_played']]
 
 
 def predict_matchup(team_a: str, team_b: str, neutral_ground: bool = True) -> dict:
@@ -80,8 +101,7 @@ def predict_matchup(team_a: str, team_b: str, neutral_ground: bool = True) -> di
                 "avg_goals_against": row["avg_goals_against"],
                 "matches_played": row["matches_played"],
             }
-        # Time sem histórico na base: usa valores neutros (mesmo default
-        # aplicado a estreantes no data_prep.py)
+        # Time sem histórico na base: usa valores neutros
         return {
             "win_rate": DEFAULT_WIN_RATE,
             "avg_goals_for": DEFAULT_GOALS_FOR,
