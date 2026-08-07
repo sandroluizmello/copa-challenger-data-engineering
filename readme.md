@@ -17,6 +17,7 @@ Construir um **Data Warehouse das Copas do Mundo** desde a ingestão de dados br
 - ✅ Testes automatizados de qualidade de dados
 - ✅ CI/CD com GitHub Actions
 - ✅ Dashboard interativo com Streamlit
+- ✅ Modelo preditivo de resultados (Machine Learning)
 - ✅ Documentação gerada automaticamente
 
 ---
@@ -116,7 +117,7 @@ copa-challenger-data-engineering/
 │   └── workflows/
 │       └── dbt-ci.yml                   # Pipeline de CI/CD (validate + full-test)
 │
-├── 📂 dashboard/                        # Dashboard interativo (Streamlit) ⭐ NOVO
+├── 📂 dashboard/                        # Dashboard interativo (Streamlit)
 │   ├── app.py                           # Página inicial (KPIs)
 │   ├── db.py                            # Conexão com MySQL + cache
 │   └── pages/
@@ -125,6 +126,14 @@ copa-challenger-data-engineering/
 │       ├── 3_⚽_Artilheiros.py
 │       ├── 4_🟨_Disciplina.py
 │       └── 5_📈_Evolucao_Times.py
+│
+├── 📂 ml/                               # Modelo preditivo (Machine Learning) ⭐ NOVO
+│   ├── db.py                            # Conexão com MySQL
+│   ├── data_prep.py                     # Extração de features (sem data leakage)
+│   ├── train_result_model.py            # Treina classificador (Vitória/Empate/Derrota)
+│   ├── train_goals_model.py             # Treina modelo Poisson de gols esperados
+│   ├── predict.py                       # predict_matchup("Brazil", "Germany")
+│   └── models/                          # Artefatos treinados (.joblib, gitignored)
 │
 ├── 📂 docker/                           # Orquestração de containers
 │   ├── docker-compose.yml               # Define MySQL + dbt
@@ -615,6 +624,65 @@ Na criação do dashboard, corrigimos um bug na view `analytics_dashboard_main_k
 
 ---
 
+## 🤖 Modelo Preditivo (Machine Learning) ✅
+
+Dois modelos complementares treinados com `scikit-learn`, usando apenas dados **anteriores** a cada partida (sem data leakage — nenhuma partida usa informação do próprio resultado ou de jogos futuros nas suas features).
+
+### 🎯 Modelo 1 — Classificador de Resultado
+
+Prevê a probabilidade de **Vitória / Empate / Derrota** entre duas seleções, a partir de:
+- Diferença de taxa de vitória histórica
+- Diferença de média de gols marcados/sofridos
+- Diferença de experiência (partidas disputadas)
+- Se algum dos times é o país-sede daquela Copa
+
+**Split temporal** (não aleatório): treina nas Copas 1930–2010, testa nas Copas 2014/2018/2022 — simula a situação real de prever o futuro a partir do passado.
+
+| Modelo | Acurácia | Log Loss |
+|--------|----------|----------|
+| Baseline (sempre "vitória do mandante") | 43.2% | - |
+| Regressão Logística | 53.6% | 1.043 |
+| **Random Forest** (escolhido) | 45.3% | **1.032** |
+
+O Random Forest foi escolhido por ter o melhor *log loss* (qualidade das probabilidades — o objetivo final é mostrar "45% de chance de vitória", não só o rótulo).
+
+**Feature mais importante:** `diff_experience` (41%) — seleções com mais Copas disputadas tendem a ser mais fortes/estabelecidas.
+
+### ⚽ Modelo 2 — Gols Esperados (Poisson)
+
+Estima a "força de ataque" e "força de defesa" de cada seleção via Regressão de Poisson (mesma ideia por trás de modelos clássicos de analytics de futebol, ex: Dixon-Coles), e constrói uma matriz de probabilidade de placar.
+
+### 🚀 Como usar
+
+```bash
+cd ml
+
+python data_prep.py           # Confere as features
+python train_result_model.py  # Treina o classificador
+python train_goals_model.py   # Treina o modelo de gols
+python predict.py "Brazil" "Germany"
+```
+
+**Exemplo de saída:**
+```
+⚽ Brazil vs Germany
+==================================================
+Vitória Brazil: 45.0%
+Empate:              30.0%
+Vitória Germany: 25.0%
+
+Gols esperados: Brazil 1.35 x 1.32 Germany
+Placar mais provável: 1x1 (probabilidade: 12.3%)
+```
+
+### ⚠️ Limitações (honestidade sobre o dataset)
+
+Com **964 partidas em 22 Copas**, o dataset é pequeno para Machine Learning. O modelo capta sinais reais (seleções historicamente mais fortes vencem mais), mas está longe de ter precisão de nível profissional. **Trate como exercício exploratório de portfólio e análise de dados, não como ferramenta de apostas ou previsão confiável.**
+
+> 📌 Os artefatos treinados (`ml/models/*.joblib`) não são versionados no Git — são gerados localmente rodando os scripts acima. Certifique-se que `ml/models/` está no `.gitignore`.
+
+---
+
 - [x] Setup Docker (MySQL + dbt)
 - [x] Schemas criados (raw, staging, marts)
 - [x] Script de ingestão de dados (com logging e validações)
@@ -648,7 +716,10 @@ Na criação do dashboard, corrigimos um bug na view `analytics_dashboard_main_k
   - [x] 5 páginas de análise
   - [x] KPIs consolidados
   - [x] Integração com analytics views
-- [ ] Modelo preditivo (Machine Learning)
+- [x] **Modelo Preditivo (Machine Learning)** ⭐ NOVO
+  - [x] Classificador de resultado (Vitória/Empate/Derrota)
+  - [x] Modelo de gols esperados (Poisson)
+  - [x] Split temporal (sem data leakage)
 
 ---
 
@@ -665,14 +736,17 @@ Na criação do dashboard, corrigimos um bug na view `analytics_dashboard_main_k
 | **CI/CD** | GitHub Actions | - |
 | **Dashboard** | Streamlit | 1.59+ |
 | **Visualização** | Plotly | 6.9+ |
+| **Machine Learning** | scikit-learn | 1.7+ (não travado, compatível com Python 3.10) |
+| **Computação Científica** | scipy | 1.14+ (não travado, compatível com Python 3.10) |
 
 ---
 
 ## 📝 Próximos Passos
 
-1. **Modelo preditivo** - Prever resultado de partidas com sklearn
-2. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
-3. **Alertas & Monitoramento** - Monitorar qualidade dos dados em produção
+1. **Deployment** - Deploy em cloud (AWS/GCP/Azure)
+2. **Alertas & Monitoramento** - Monitorar qualidade dos dados em produção
+3. **Integração ML + Dashboard** - Adicionar página de previsão de confrontos no Streamlit
+4. **Melhorias no modelo** - Testar features adicionais (histórico de confrontos diretos, forma recente vs. histórico completo)
 
 ---
 
@@ -811,4 +885,4 @@ Data Engineer | Estudante de Pós-Graduação em Engenharia de Dados (PUC Minas)
 
 ---
 
-**Última atualização:** Julho 2026 - Fase 1 Analytics Views + Testes Automatizados + CI/CD + Dashboard Streamlit ✅
+**Última atualização:** Julho 2026 - Projeto Completo: Analytics Views + Testes + CI/CD + Dashboard + Modelo Preditivo ✅
